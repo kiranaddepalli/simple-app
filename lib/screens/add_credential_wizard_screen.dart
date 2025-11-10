@@ -140,6 +140,9 @@ class _AddCredentialWizardScreenState extends State<AddCredentialWizardScreen> {
   }
 
   void _reset() {
+    // Stop the camera before resetting state
+    _cameraController.stop();
+
     setState(() {
       _currentStep = 0;
       _selectedType = null;
@@ -309,10 +312,7 @@ class _AddCredentialWizardScreenState extends State<AddCredentialWizardScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () {
-                  _cameraController.stop();
-                  _reset();
-                },
+                onPressed: _reset,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFFCC0000),
@@ -330,6 +330,11 @@ class _AddCredentialWizardScreenState extends State<AddCredentialWizardScreen> {
   }
 
   Widget _buildSuccessStep() {
+    // Guard against null selected type - IndexedStack renders all children
+    if (_selectedType == null) {
+      return const SizedBox.shrink();
+    }
+
     return Center(
       child: SingleChildScrollView(
         child: Padding(

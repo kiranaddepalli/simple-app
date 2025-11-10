@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:math';
 import '../models/credential_model.dart';
 import '../providers/wallet_provider.dart';
 
@@ -26,6 +27,10 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
   void initState() {
     super.initState();
     _cameraController = MobileScannerController();
+    // Start the camera immediately
+    Future.microtask(() {
+      _cameraController.start();
+    });
   }
 
   @override
@@ -40,18 +45,21 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
       if (barcode != null && barcode.rawValue != null) {
         setState(() {
           _scannedData = barcode.rawValue;
-          _currentStep = 1;
+          // Auto-detect credential type and go directly to confirmation
+          _credential = _createCredentialOfType(_detectCredentialType(barcode.rawValue!), barcode.rawValue!);
+          _currentStep = 1; // Go to confirmation screen
         });
         _cameraController.stop();
       }
     }
   }
 
-  void _selectCredentialType(CredentialType type) {
-    setState(() {
-      _credential = _createCredentialOfType(type, _scannedData!);
-      _currentStep = 2;
-    });
+  // Auto-detect credential type from QR data - randomly select from available types
+  CredentialType _detectCredentialType(String qrData) {
+    final types = CredentialType.values;
+    final random = Random();
+    final index = random.nextInt(types.length);
+    return types[index];
   }
 
   VerifiableCredential _createCredentialOfType(CredentialType type, String qrData) {
@@ -138,17 +146,22 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
     if (_credential != null) {
       widget.walletProvider.addCredential(_credential!);
       setState(() {
-        _currentStep = 3;
+        _currentStep = 2; // Success is now step 2
       });
     }
   }
 
   void _reset() {
+    // Stop the camera before resetting state
+    _cameraController.stop();
+
     setState(() {
       _currentStep = 0;
       _scannedData = null;
       _credential = null;
     });
+
+    // Restart the camera
     _cameraController.start();
   }
 
@@ -162,10 +175,9 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
       body: IndexedStack(
         index: _currentStep,
         children: [
-          _buildScanStep(),
-          _buildSelectTypeStep(),
-          _buildConfirmStep(),
-          _buildSuccessStep(),
+          _buildScanStep(), // Step 0: Scan QR
+          _buildConfirmStep(), // Step 1: Confirm (auto-detected type)
+          _buildSuccessStep(), // Step 2: Success
         ],
       ),
     );
@@ -176,10 +188,9 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
       case 0:
         return const Text('Scan QR Code');
       case 1:
-        return const Text('Select Credential Type');
+        // Auto-detected type - show credential type name
+        return Text(_credential?.type.displayName ?? 'Confirm Information');
       case 2:
-        return const Text('Confirm Information');
-      case 3:
         return const Text('Credential Added');
       default:
         return const Text('Scan QR');
@@ -254,87 +265,6 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
     );
   }
 
-  Widget _buildSelectTypeStep() {
-    const credentialTypes = CredentialType.values;
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Select Credential Type',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'What type of credential did you scan?',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: credentialTypes.map((type) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Material(
-                    child: InkWell(
-                      onTap: () => _selectCredentialType(type),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: const Color(0xFFCC0000).withOpacity(0.3),
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              type.icon,
-                              style: const TextStyle(fontSize: 28),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                type.displayName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_ios, size: 18, color: Color(0xFFCC0000)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-      ],
-    );
-  }
-
   Widget _buildConfirmStep() {
     if (_credential == null) {
       return const Center(child: CircularProgressIndicator());
@@ -346,6 +276,49 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header showing scanned credential type
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCC0000).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    _credential!.type.icon,
+                    style: const TextStyle(fontSize: 32),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Credential Scanned',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _credential!.type.displayName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text(
               'Confirm Information',
               style: TextStyle(
@@ -356,7 +329,7 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Review the credential details before adding',
+              'Review the credential details below',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -380,40 +353,28 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Issuer information
                     Row(
                       children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCC0000).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              _credential!.type.icon,
-                              style: const TextStyle(fontSize: 28),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _credential!.type.displayName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              Text(
-                                _credential!.issuer,
+                              const Text(
+                                'Issuer',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _credential!.issuer,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
                               ),
                             ],
@@ -475,6 +436,11 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
   }
 
   List<Widget> _buildCredentialDetails() {
+    // Safety check - if credential is null, return empty list
+    if (_credential == null) {
+      return [];
+    }
+
     final details = _credential!.credentialSubject;
     final widgets = <Widget>[];
 
@@ -546,6 +512,11 @@ class _ScanQRWizardScreenState extends State<ScanQRWizardScreen> {
   }
 
   Widget _buildSuccessStep() {
+    // Guard against null credential - IndexedStack renders all children
+    if (_credential == null) {
+      return const SizedBox.shrink();
+    }
+
     return Center(
       child: SingleChildScrollView(
         child: Padding(
