@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../providers/auth_provider.dart';
+import '../models/user_model.dart';
+import 'verification_method_screen.dart';
+import 'user_info_confirmation_screen.dart';
+import 'verification_success_screen.dart';
+import 'identity_verification_info_screen.dart';
 
-/// Sign-in/Authentication Screen - Entry point for the wallet
+/// Sign-in Screen with Get Started Wizard Flow
+/// Steps: QR Scan -> Identity Info -> Method Selection -> Confirm User Info -> Success -> Main App
 class SignInScreen extends StatefulWidget {
   final AuthProvider authProvider;
   final Function onAuthenticated;
@@ -24,11 +30,15 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   late MobileScannerController _scannerController;
-  bool _isScanning = false;
   PermissionStatus? _cameraPermission;
   final TextEditingController _didController = TextEditingController();
   bool _showManualEntry = false;
   String? _errorMessage;
+
+  // Wizard state
+  int _currentStep = 0; // 0: QR Scan, 1: Identity Info, 2: Method Selection, 3: Confirm Info, 4: Success
+  String? _scannedDid;
+  UserInfo? _userInfo;
 
   @override
   void initState() {
@@ -48,471 +58,380 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _checkCameraPermission() async {
-    final status = await Permission.camera.status;
-    setState(() => _cameraPermission = status);
+    final status = await Permission.camera.request();
+    setState(() {
+      _cameraPermission = status;
+    });
   }
 
-  Future<void> _requestCameraPermission() async {
-    final status = await Permission.camera.request();
-    setState(() => _cameraPermission = status);
+  void _handleQRScanned(BarcodeCapture capture) {
+    if (_currentStep != 0) return; // Only handle scan at step 0
 
-    if (!mounted) return;
-
-    if (status.isDenied) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Camera permission is required to scan QR codes'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } else if (status.isPermanentlyDenied) {
-      _showPermissionDialog();
-    } else if (status.isGranted) {
-      _startScanning();
+    final List<Barcode> barcodes = capture.barcodes;
+    for (final barcode in barcodes) {
+      if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+        setState(() {
+          _scannedDid = barcode.rawValue;
+          _currentStep = 1; // Move to Identity Info screen
+        });
+        _scannerController.stop();
+        break;
+      }
     }
   }
 
-  void _startScanning() {
-    _scannerController.start();
-  }
-
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Camera Permission Required'),
-        content: const Text(
-          'This app needs camera access to scan QR codes. Please enable camera permissions in settings.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              openAppSettings();
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFCC0000),
-            ),
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _processDID(String did) async {
+  void _handleIdentityInfoContinue() {
     setState(() {
-      _isScanning = true;
+      _currentStep = 2; // Move to Method Selection
+    });
+  }
+
+  void _handleMethodSelected() {
+    setState(() {
+      _currentStep = 3; // Move to User Info Confirmation
+      _userInfo = UserInfo.mockUser(); // Load mock user for confirmation
+    });
+  }
+
+  void _handleUserInfoConfirmed() {
+    setState(() {
+      _currentStep = 4; // Move to Success Screen
+    });
+  }
+
+  void _handleVerificationSuccess() {
+    // Authenticate and move to main app
+    if (_scannedDid != null) {
+      widget.authProvider.loginWithDID(_scannedDid!);
+    } else {
+      widget.authProvider.loginWithDID(_didController.text);
+    }
+    widget.onAuthenticated();
+  }
+
+  void _handleManualEntry() {
+    if (_didController.text.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter a DID';
+      });
+      return;
+    }
+    setState(() {
+      _scannedDid = _didController.text;
+      _currentStep = 1; // Move to Identity Info screen
       _errorMessage = null;
     });
-
-    try {
-      // Authenticate with the DID
-      final success = await widget.authProvider.loginWithDID(did);
-
-      if (!mounted) return;
-
-      if (success) {
-        widget.onAuthenticated();
-      } else {
-        setState(() {
-          _errorMessage = 'Invalid DID format. Please try again.';
-          _isScanning = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error processing DID: $e';
-          _isScanning = false;
-        });
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasExistingDID = widget.authProvider.hasExistingDID;
-    final isVerifying = widget.isVerifyMode || hasExistingDID;
-
-    if (_showManualEntry) {
-      return _buildManualEntryView(hasExistingDID);
+    // Determine which screen to show based on current step
+    if (_currentStep == 0) {
+      return _buildQRScanScreen();
+    } else if (_currentStep == 1) {
+      return IdentityVerificationInfoScreen(
+        onContinue: _handleIdentityInfoContinue,
+      );
+    } else if (_currentStep == 2) {
+      return VerificationMethodScreen(
+        onMethodSelected: _handleMethodSelected,
+      );
+    } else if (_currentStep == 3 && _userInfo != null) {
+      return UserInfoConfirmationScreen(
+        userInfo: _userInfo!,
+        onConfirmed: _handleUserInfoConfirmed,
+        onEdit: () {
+          // For now, go back to method selection
+          setState(() {
+            _currentStep = 2;
+          });
+        },
+      );
+    } else if (_currentStep == 4) {
+      return VerificationSuccessScreen(
+        onContinueToApp: _handleVerificationSuccess,
+      );
     }
 
-    if (_cameraPermission?.isGranted ?? false) {
-      return _buildScannerView(isVerifying);
-    }
-
-    return _buildPermissionView(isVerifying);
+    return _buildQRScanScreen();
   }
 
-  Widget _buildPermissionView(bool hasExistingDID) {
+  Widget _buildQRScanScreen() {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFCC0000),
-              Color(0xFF99000B),
-            ],
+      appBar: AppBar(
+        title: Text(widget.isVerifyMode ? 'Verify Your Identity' : 'Get Started'),
+        backgroundColor: const Color(0xFFCC0000),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            widget.onBackToWelcome?.call();
+          },
+        ),
+      ),
+      body: _cameraPermission == null
+          ? const Center(child: CircularProgressIndicator())
+          : _cameraPermission!.isGranted
+              ? _buildCameraView()
+              : _buildPermissionDeniedView(),
+    );
+  }
+
+  Widget _buildCameraView() {
+    return Stack(
+      children: [
+        MobileScanner(
+          controller: _scannerController,
+          onDetect: _handleQRScanned,
+        ),
+        // UI Overlay
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.transparent),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Scanning frame
+                  Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: const Color(0xFFCC0000),
+                        width: 3,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  // Instruction text with background
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Align QR code within the frame',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Back button
-              Align(
-                alignment: Alignment.topLeft,
-                child: TextButton.icon(
-                  onPressed: widget.onBackToWelcome != null ? () => widget.onBackToWelcome!() : null,
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
+        // Top safe area with info
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  widget.isVerifyMode ? 'Scan your existing DID to verify' : 'Scan your credential QR code',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ),
-              // Main content
-              Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.wallet_giftcard,
-                          size: 80,
+            ),
+          ),
+        ),
+        // Bottom button for manual entry
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!_showManualEntry)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _showManualEntry = true;
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
                           color: Colors.white,
+                          width: 2,
                         ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'CVS Health Digital Wallet',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Enter Manually',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _didController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Enter DID or credential code',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Colors.white30,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Colors.white30,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFCC0000),
+                                width: 2,
+                              ),
+                            ),
                           ),
-                          textAlign: TextAlign.center,
                         ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: Color(0xFFFF6B6B),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
-                        Text(
-                          hasExistingDID
-                              ? 'Welcome back! Verify your identity to continue.'
-                              : 'Manage your Digital Identity securely',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
-                            height: 1.5,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 60),
-                        Icon(
-                          Icons.camera_alt,
-                          size: 60,
-                          color: Colors.white30,
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Camera Access Required',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'We need camera access to scan your Digital ID QR code',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white70,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 60),
-                        ElevatedButton.icon(
-                          onPressed: _requestCameraPermission,
-                          icon: const Icon(Icons.camera_alt),
-                          label: const Text('Enable Camera'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFFCC0000),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 15,
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: ElevatedButton(
+                            onPressed: _handleManualEntry,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFCC0000),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextButton(
-                          onPressed: () {
-                            setState(() => _showManualEntry = true);
-                          },
-                          child: const Text(
-                            'Enter DID Manually',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
+                            child: const Text(
+                              'Continue',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildScannerView(bool hasExistingDID) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(hasExistingDID ? 'Verify Your Identity' : 'Get Started'),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFCC0000),
-        elevation: 0,
-      ),
-      body: Stack(
+  Widget _buildPermissionDeniedView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          MobileScanner(
-            controller: _scannerController,
-            onDetect: (capture) {
-              if (_isScanning) return;
-
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                final String? code = barcode.rawValue;
-                if (code != null && code.isNotEmpty) {
-                  _scannerController.stop();
-                  _processDID(code);
-                  break;
-                }
-              }
-            },
+          const Icon(
+            Icons.camera_alt_outlined,
+            size: 64,
+            color: Color(0xFFCC0000),
           ),
-          // Overlay with frame guides
-          Center(
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: const Color(0xFFCC0000),
-                  width: 3,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.qr_code_2,
-                  size: 100,
-                  color: Color(0xFFCC0000),
-                ),
-              ),
-            ),
-          ),
-          // Instructions overlay
-          Positioned(
-            bottom: 100,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  'Position QR Code within frame',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Loading/Error overlay
-          if (_isScanning)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-            ),
-          if (_errorMessage != null)
-            Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[700],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error, color: Colors.white),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: TextButton(
-          onPressed: () {
-            _scannerController.stop();
-            setState(() => _showManualEntry = true);
-          },
-          child: const Text(
-            'Enter DID Manually',
+          const SizedBox(height: 24),
+          const Text(
+            'Camera Permission Required',
             style: TextStyle(
-              color: Color(0xFF17447C),
-              fontSize: 14,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManualEntryView(bool hasExistingDID) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(hasExistingDID ? 'Verify Your Identity' : 'Get Started'),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFCC0000),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter Your Digital ID',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFCC0000),
-                ),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              'We need access to your camera to scan QR codes',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
               ),
-              const SizedBox(height: 12),
-              Text(
-                hasExistingDID
-                    ? 'Paste your existing Digital ID to verify your identity'
-                    : 'Paste your Digital ID or scan the QR code to get started',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 40),
-              TextField(
-                controller: _didController,
-                decoration: InputDecoration(
-                  hintText: 'e.g., did:cvs:user123abc...',
-                  labelText: 'Digital ID',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  prefixIcon: const Icon(Icons.badge),
-                  errorText: _errorMessage,
-                ),
-                maxLines: 4,
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isScanning
-                      ? null
-                      : () async {
-                          if (_didController.text.isEmpty) {
-                            setState(() => _errorMessage = 'Please enter a Digital ID');
-                            return;
-                          }
-                          await _processDID(_didController.text);
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFCC0000),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: _isScanning
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          hasExistingDID ? 'Verify Identity' : 'Get Started',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: TextButton(
-                  onPressed: _cameraPermission?.isGranted ?? false
-                      ? () {
-                          setState(() => _showManualEntry = false);
-                          _startScanning();
-                        }
-                      : null,
-                  child: const Text(
-                    'Back to QR Scan',
-                    style: TextStyle(
-                      color: Color(0xFF17447C),
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: () {
+              openAppSettings();
+              _checkCameraPermission();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCC0000),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 32,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Open Settings',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
