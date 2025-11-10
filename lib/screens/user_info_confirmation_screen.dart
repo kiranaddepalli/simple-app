@@ -80,37 +80,174 @@ class _UserInfoConfirmationScreenState extends State<UserInfoConfirmationScreen>
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Information Cards
-                  _InfoCard(
-                    label: 'First Name',
-                    value: widget.userInfo.firstName,
-                  ),
-                  const SizedBox(height: 16),
-                  _InfoCard(
-                    label: 'Last Name',
-                    value: widget.userInfo.lastName,
-                  ),
-                  const SizedBox(height: 16),
-                  _InfoCard(
-                    label: 'Date of Birth',
-                    value: widget.userInfo.formattedDOB,
-                  ),
-                  const SizedBox(height: 16),
-                  _InfoCard(
-                    label: 'Country',
-                    value: widget.userInfo.country,
-                  ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 8),
+                  // Profile Card Container
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFFCC0000).withOpacity(0.2),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      children: [
+                        // Profile Avatar
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFCC0000),
+                                Color(0xFF99000B),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '👤',
+                              style: TextStyle(fontSize: 50),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
 
-                  // Confirmation Message
+                        // Full Name
+                        Text(
+                          widget.userInfo.fullName,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Verified Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCC0000).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.verified_user,
+                                size: 16,
+                                color: Color(0xFFCC0000),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Ready to Verify',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFCC0000),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Divider
+                        Container(
+                          height: 1,
+                          color: Colors.grey[200],
+                          margin: const EdgeInsets.symmetric(vertical: 20),
+                        ),
+
+                        // Details Grid
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Date of Birth',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    widget.userInfo.formattedDOB,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 60,
+                              color: Colors.grey[200],
+                            ),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Country',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    widget.userInfo.country,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Security Message
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFCC0000).withOpacity(0.1),
+                      color: const Color(0xFFE3F2FD),
                       border: Border.all(
-                        color: const Color(0xFFCC0000).withOpacity(0.3),
+                        color: const Color(0xFF90CAF9),
+                        width: 1,
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -118,17 +255,18 @@ class _UserInfoConfirmationScreenState extends State<UserInfoConfirmationScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ℹ️',
+                          '🔒',
                           style: TextStyle(fontSize: 20),
                         ),
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'We use this information to verify your identity and protect your account.',
+                            'Your information is encrypted and will be used only to verify your identity.',
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFFCC0000),
+                              fontSize: 13,
+                              color: Color(0xFF0D47A1),
                               height: 1.5,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
@@ -198,51 +336,6 @@ class _UserInfoConfirmationScreenState extends State<UserInfoConfirmationScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoCard({
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.grey[50],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
       ),
     );
   }
