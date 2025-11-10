@@ -141,7 +141,6 @@ class _MainWalletAppState extends State<MainWalletApp> {
         final screens = [
           HomeScreen(
             credentials: walletProvider.credentials,
-            onScanQR: _handleScanQR,
           ),
           CredentialsScreen(
             credentials: walletProvider.credentials,
@@ -191,29 +190,6 @@ class _MainWalletAppState extends State<MainWalletApp> {
     // Call parent's onLogout callback which will navigate back to welcome
     if (widget.onLogout != null) {
       widget.onLogout!();
-    }
-  }
-
-  Future<void> _handleScanQR() async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => VerificationScreen(
-        onVerify: () async {
-          final qrData = 'mock_credential_${DateTime.now().millisecondsSinceEpoch}';
-          await context.read<WalletProvider>().scanAndAddCredential(qrData);
-        },
-        verificationMessage: 'Scanning credential...',
-      ),
-    );
-
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Credential added successfully!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
     }
   }
 

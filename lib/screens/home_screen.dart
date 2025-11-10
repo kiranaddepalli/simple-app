@@ -1,16 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/credential_model.dart';
+import '../providers/wallet_provider.dart';
+import 'scan_qr_wizard_screen.dart';
+import 'add_credential_wizard_screen.dart';
 
 /// Home Screen - Main dashboard after verification
 class HomeScreen extends StatelessWidget {
   final List<VerifiableCredential> credentials;
-  final VoidCallback onScanQR;
 
   const HomeScreen({
     super.key,
     required this.credentials,
-    required this.onScanQR,
   });
+
+  void _openScanQRWizard(BuildContext context) {
+    final walletProvider = context.read<WalletProvider>();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ScanQRWizardScreen(
+          walletProvider: walletProvider,
+        ),
+      ),
+    );
+  }
+
+  void _openAddCredentialWizard(BuildContext context) {
+    final walletProvider = context.read<WalletProvider>();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddCredentialWizardScreen(
+          walletProvider: walletProvider,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +124,7 @@ class HomeScreen extends StatelessWidget {
                         icon: Icons.qr_code_2,
                         label: 'Scan QR',
                         color: const Color(0xFFCC0000),
-                        onTap: onScanQR,
+                        onTap: () => _openScanQRWizard(context),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -107,7 +133,7 @@ class HomeScreen extends StatelessWidget {
                         icon: Icons.add_circle_outline,
                         label: 'Add Credential',
                         color: const Color(0xFF17447C),
-                        onTap: () {},
+                        onTap: () => _openAddCredentialWizard(context),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -187,7 +213,7 @@ class HomeScreen extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: onScanQR,
+                            onPressed: () => _openScanQRWizard(context),
                             icon: const Icon(Icons.qr_code_2),
                             label: const Text('Start Scanning'),
                             style: ElevatedButton.styleFrom(
