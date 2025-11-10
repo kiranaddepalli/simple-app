@@ -109,14 +109,22 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   }
 
   List<VerifiableCredential> _getFilteredCredentials() {
+    List<VerifiableCredential> result;
+    
     switch (_filter) {
       case 'active':
-        return widget.credentials.where((c) => !c.isExpired).toList();
+        result = widget.credentials.where((c) => !c.isExpired).toList();
+        break;
       case 'expired':
-        return widget.credentials.where((c) => c.isExpired).toList();
+        result = widget.credentials.where((c) => c.isExpired).toList();
+        break;
       default:
-        return widget.credentials;
+        result = widget.credentials;
     }
+    
+    // Sort by issuance date, newest first
+    result.sort((a, b) => b.issuanceDate.compareTo(a.issuanceDate));
+    return result;
   }
 
   int _getActiveCount() {

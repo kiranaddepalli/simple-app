@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import '../models/credential_model.dart';
 
 /// Health Agent Screen - Interactive conversational agent experience
 class HealthAgentScreen extends StatefulWidget {
   final String? did;
+  final Function(VerifiableCredential)? onAppointmentBooked;
 
   const HealthAgentScreen({
     super.key,
     this.did,
+    this.onAppointmentBooked,
   });
 
   @override
@@ -18,7 +21,7 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<AgentMessage> messages = [];
 
-  int currentStep = 0; // 0: Intro, 1: DID Verification, 2: Permissions, 3: Connected, 4: Conversation
+  int currentStep = 0; // 0: Intro, 1: Agent DID, 2: Request User DID, 3: Permissions, 4: Ask Symptoms, 5: Conversation
   bool isTyping = false;
   bool permissionsGranted = false;
   bool showAppointmentFlow = false;
@@ -118,7 +121,7 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
     _messageController.clear();
 
     if (currentStep == 0) {
-      // Ready for DID verification
+      // Agent introduces itself, now reveal DID
       Future.delayed(const Duration(milliseconds: 1000), () {
         _addAgentMessage(
           'Now let me verify my identity. My DID: $mockDID',
@@ -129,26 +132,35 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
             '✓ Identity verified successfully',
             step: 1,
           );
+          Future.delayed(const Duration(milliseconds: 800), () {
+            _addAgentMessage(
+              'Now, what is your identity? Please provide your name or DID.',
+              step: 2,
+            );
+          });
         });
       });
-    } else if (currentStep == 1) {
-      // Request permissions
+    } else if (currentStep == 2) {
+      // User provided their identity, request permissions
       Future.delayed(const Duration(milliseconds: 1000), () {
         _showPermissionRequest();
       });
     } else if (currentStep == 3) {
-      // Conversational stage
+      // Permissions granted, now ask for symptoms
+      _grantPermissions();
+    } else if (currentStep == 4) {
+      // User described symptoms, start health conversation
       _handleHealthConversation(text);
     }
   }
 
   void _showPermissionRequest() {
     setState(() {
-      currentStep = 2;
+      currentStep = 3;
     });
     _addAgentMessage(
       'To better assist you, I need permission to access:',
-      step: 2,
+      step: 3,
     );
     _scrollToBottom();
   }
@@ -156,13 +168,13 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
   void _grantPermissions() {
     setState(() {
       permissionsGranted = true;
-      currentStep = 3;
+      currentStep = 4;
     });
     _addUserMessage('✓ Permissions granted');
     Future.delayed(const Duration(milliseconds: 800), () {
       _addAgentMessage(
-        'Perfect! I\'m now connected and ready to help. What brings you here today? Feel free to describe your symptoms or health concerns.',
-        step: 3,
+        'Perfect! I\'m now connected and ready to help. Please describe your symptoms or health concerns.',
+        step: 4,
       );
     });
   }
@@ -176,9 +188,8 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
 
   void _simulateStreamingResponse(String userInput) {
     final List<String> streamingMessages = [
-      'Let me verify your identity and access your medical records...',
-      'Checking your health history...',
       'Analyzing your symptoms...',
+      'Checking your medical history...',
       'Based on your symptoms, I recommend visiting an urgent care clinic.',
       'I found available appointments at MinuteClinic nearby.',
     ];
@@ -230,6 +241,14 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
     );
 
     Future.delayed(const Duration(milliseconds: 1000), () {
+      // Create appointment VC
+      final appointmentVC = _createAppointmentVC(appointment);
+
+      // Call callback to add VC to credentials
+      if (widget.onAppointmentBooked != null) {
+        widget.onAppointmentBooked!(appointmentVC);
+      }
+
       _addAgentMessage(
         'Great! Your appointment is confirmed. I\'ve created a Verifiable Credential (VC) for your appointment booking.',
         step: 3,
@@ -242,6 +261,32 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
     });
 
     setState(() => showAppointmentFlow = false);
+  }
+
+  /// Create an appointment VC
+  VerifiableCredential _createAppointmentVC(SelectedAppointment appointment) {
+    final now = DateTime.now();
+    final appointmentDate = now.add(const Duration(days: 1)); // Mock future appointment
+
+    return VerifiableCredential(
+      id: 'vc:appointment:${now.millisecondsSinceEpoch}',
+      type: CredentialType.minuteClinicAppointment,
+      issuer: appointment.location!.name,
+      subject: 'did:user:${now.millisecondsSinceEpoch}',
+      issuanceDate: now,
+      expirationDate: appointmentDate.add(const Duration(hours: 24)),
+      credentialSubject: {
+        'appointmentId': 'APPT${now.millisecondsSinceEpoch.toString().substring(0, 10)}',
+        'clinicName': appointment.location!.name,
+        'address': appointment.location!.address,
+        'time': appointment.timeSlot.time,
+        'date': appointment.timeSlot.date,
+        'distance': '${appointment.location!.distance} miles',
+        'reason': 'Health Consultation',
+        'status': 'Confirmed',
+      },
+      isVerified: true,
+    );
   }
 
   @override
@@ -332,8 +377,10 @@ class _HealthAgentScreenState extends State<HealthAgentScreen> {
             placeholder: currentStep == 0
                 ? 'Click here to start conversation...'
                 : currentStep == 2
-                    ? 'Grant permissions below first'
-                    : 'Describe your symptoms...',
+                    ? 'Enter your name or DID...'
+                    : currentStep == 3
+                        ? 'Grant permissions below first'
+                        : 'Describe your symptoms or health concerns...',
           ),
         ],
       ),

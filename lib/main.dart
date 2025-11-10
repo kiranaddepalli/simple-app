@@ -146,7 +146,10 @@ class _MainWalletAppState extends State<MainWalletApp> {
             credentials: walletProvider.credentials,
             onAddCredential: _handleAddCredential,
           ),
-          HealthAgentScreen(did: authProvider.getDID()),
+          HealthAgentScreen(
+            did: authProvider.getDID(),
+            onAppointmentBooked: (credential) => walletProvider.addCredential(credential),
+          ),
           SettingsScreen(
             authProvider: authProvider,
             onLogout: _handleLogout,

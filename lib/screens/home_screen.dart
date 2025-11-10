@@ -251,7 +251,10 @@ class HomeScreen extends StatelessWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: credentials.length,
                     itemBuilder: (context, index) {
-                      final credential = credentials[index];
+                      // Sort credentials by issuance date, newest first
+                      final sortedCredentials = List<VerifiableCredential>.from(credentials);
+                      sortedCredentials.sort((a, b) => b.issuanceDate.compareTo(a.issuanceDate));
+                      final credential = sortedCredentials[index];
                       return _CredentialCard(credential: credential);
                     },
                   ),
@@ -489,9 +492,9 @@ class _CredentialCard extends StatelessWidget {
                     color: const Color(0xFFCC0000).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
-                    Icons.card_membership,
-                    color: Color(0xFFCC0000),
+                  child: Text(
+                    credential.type.icon,
+                    style: const TextStyle(fontSize: 24),
                   ),
                 ),
                 const SizedBox(width: 16),
