@@ -251,10 +251,10 @@ class HomeScreen extends StatelessWidget {
                       // Sort credentials by issuance date, newest first
                       final sortedCredentials = List<VerifiableCredential>.from(credentials);
                       sortedCredentials.sort((a, b) => b.issuanceDate.compareTo(a.issuanceDate));
-                      
+
                       // Show top 10 credentials
                       final displayCredentials = sortedCredentials.take(10).toList();
-                      
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
