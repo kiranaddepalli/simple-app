@@ -110,7 +110,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
 
   List<VerifiableCredential> _getFilteredCredentials() {
     List<VerifiableCredential> result;
-    
+
     switch (_filter) {
       case 'active':
         result = widget.credentials.where((c) => !c.isExpired).toList();
@@ -121,7 +121,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       default:
         result = widget.credentials;
     }
-    
+
     // Sort by issuance date, newest first
     result.sort((a, b) => b.issuanceDate.compareTo(a.issuanceDate));
     return result;

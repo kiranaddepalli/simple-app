@@ -246,16 +246,57 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: credentials.length,
-                    itemBuilder: (context, index) {
+                  Builder(
+                    builder: (context) {
                       // Sort credentials by issuance date, newest first
                       final sortedCredentials = List<VerifiableCredential>.from(credentials);
                       sortedCredentials.sort((a, b) => b.issuanceDate.compareTo(a.issuanceDate));
-                      final credential = sortedCredentials[index];
-                      return _CredentialCard(credential: credential);
+                      
+                      // Show top 10 credentials
+                      final displayCredentials = sortedCredentials.take(10).toList();
+                      
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: displayCredentials.length,
+                            itemBuilder: (context, index) {
+                              final credential = displayCredentials[index];
+                              return _HomeCredentialCard(credential: credential);
+                            },
+                          ),
+                          if (sortedCredentials.length > 10)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: TextButton(
+                                  onPressed: () {
+                                    // Navigate to Credentials tab
+                                    DefaultTabController.of(context).animateTo(1);
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    backgroundColor: const Color(0xFFCC0000).withOpacity(0.1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Show all',
+                                    style: TextStyle(
+                                      color: Color(0xFFCC0000),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
                     },
                   ),
                 ],
@@ -456,12 +497,16 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _CredentialCard extends StatelessWidget {
+class _HomeCredentialCard extends StatelessWidget {
   final VerifiableCredential credential;
 
-  const _CredentialCard({
+  const _HomeCredentialCard({
     required this.credential,
   });
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,7 +515,10 @@ class _CredentialCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: credential.isExpired ? Colors.red[200]! : Colors.green[200]!,
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -485,19 +533,8 @@ class _CredentialCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCC0000).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    credential.type.icon,
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                ),
-                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,13 +542,13 @@ class _CredentialCard extends StatelessWidget {
                       Text(
                         credential.type.displayName,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Text(
-                        credential.displayName,
+                        'Issued by: ${credential.issuer}',
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey[600],
@@ -520,44 +557,24 @@ class _CredentialCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (!credential.isExpired)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Active',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.green,
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Expired',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.red,
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: credential.isExpired ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    credential.isExpired ? 'Expired' : 'Valid',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: credential.isExpired ? Colors.red : Colors.green,
                     ),
                   ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -566,54 +583,73 @@ class _CredentialCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _CredentialDetail(
-                  label: 'Member ID',
-                  value: credential.memberId,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Issued',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatDate(credential.issuanceDate),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                _CredentialDetail(
-                  label: 'Expires In',
-                  value: '${credential.daysUntilExpiry} days',
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Expires',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatDate(credential.expirationDate),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: credential.isExpired ? Colors.red : Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Days Left',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${credential.daysUntilExpiry}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: credential.isExpired ? Colors.red : Colors.green,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CredentialDetail extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _CredentialDetail({
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
     );
   }
 }
