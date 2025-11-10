@@ -218,6 +218,7 @@ class HomeScreen extends StatelessWidget {
                             label: const Text('Start Scanning'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFCC0000),
+                              foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),

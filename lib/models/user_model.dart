@@ -18,9 +18,9 @@ class UserInfo {
   // Mock user for testing
   static UserInfo mockUser() {
     return UserInfo(
-      firstName: 'John',
-      lastName: 'Thompson',
-      dateOfBirth: DateTime(1985, 6, 15),
+      firstName: 'Kiran',
+      lastName: 'Addepalli',
+      dateOfBirth: DateTime(1975, 10, 10),
       country: 'United States',
     );
   }

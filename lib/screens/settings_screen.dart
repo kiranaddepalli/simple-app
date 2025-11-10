@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../providers/auth_provider.dart';
+import 'digital_identity_screen.dart';
 
 /// Settings Screen - Now includes profile and settings
 class SettingsScreen extends StatefulWidget {
@@ -23,8 +24,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final did = widget.authProvider.getDID() ?? 'No DID';
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -51,100 +50,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFCC0000).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.badge,
-                                color: Color(0xFFCC0000),
-                                size: 28,
-                              ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DigitalIdentityScreen(
+                              authProvider: widget.authProvider,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'DID',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    did.length > 40 ? '${did.substring(0, 40)}...' : did,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'monospace',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.badge),
+                      label: const Text('View My Digital Identity Profile'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFCC0000),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('DID copied to clipboard'),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.copy, size: 16),
-                                label: const Text('Copy'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF17447C),
-                                  side: const BorderSide(color: Color(0xFF17447C)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('QR code generated'),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.qr_code_2, size: 16),
-                                label: const Text('QR Code'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF17447C),
-                                  side: const BorderSide(color: Color(0xFF17447C)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -284,6 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFCC0000),
+              foregroundColor: Colors.white,
             ),
             child: const Text('Save'),
           ),
@@ -354,6 +283,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Logout'),
           ),
